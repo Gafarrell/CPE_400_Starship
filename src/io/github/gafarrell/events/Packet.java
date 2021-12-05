@@ -9,18 +9,16 @@ public class Packet {
         LOW
     }
 
-    private Priority priority;
-    private Random rando = new Random();
-    private double dataSize;
+    private final Priority priority;
+    private final Random rando = new Random();
+    private final double dataSize;
 
     private Priority getRandomPriority(){
-        int prio = rando.nextInt(2)+1;
-        switch (prio){
-            case 1: return Priority.LOW;
-            case 2: return Priority.MEDIUM;
-            case 3: return Priority.HIGH;
-        }
-        return Priority.LOW;
+        return switch (rando.nextInt(3)) {
+            case 1 -> Priority.MEDIUM;
+            case 2 -> Priority.HIGH;
+            default -> Priority.LOW;
+        };
     }
 
     public Packet(){

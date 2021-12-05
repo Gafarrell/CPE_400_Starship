@@ -1,21 +1,15 @@
 package io.github.gafarrell;
 
-import io.github.gafarrell.controller.DayClock;
-import io.github.gafarrell.events.Packet;
+import io.github.gafarrell.events.Event;
 
-import java.util.ArrayList;
-import java.util.Random;
-import java.util.Scanner;
+import java.util.*;
 
 // Also known as Command and Control Center (or in Starship terms, the HUB)
 public class Main {
-    public static ArrayList<Drone> allDrones = new ArrayList<>();
-    public static ArrayList<Vendor> allVendors = new ArrayList<>();
-    public static ArrayList<Packet> eventQueue = new ArrayList<>();
+    public static Queue<Event> eventQueue = new LinkedList<>();
     public static final Vendor Hub = new Vendor("Hub", true, false);
 
     public static final double speed = 3.0;
-    public static double lastTime = System.currentTimeMillis();
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -36,30 +30,31 @@ public class Main {
             fleetSize = scanner.nextLine();
         }
 
+        // Set input to upper case for switch statements
         fleetSize = fleetSize.toUpperCase();
         pop = pop.toUpperCase();
 
         switch (fleetSize) {
             case "SMALL" -> {
-                for (int i = 0; i < 20; i++) allDrones.add(new Drone());
+                for (int i = 0; i < 20; i++) Drone.allDrones.add(new Drone(Hub));
             }
             case "MEDIUM" -> {
-                for (int i = 0; i < 50; i++) allDrones.add(new Drone());
+                for (int i = 0; i < 50; i++) Drone.allDrones.add(new Drone(Hub));
             }
             case "LARGE" -> {
-                for (int i = 0; i < 80; i++) allDrones.add(new Drone());
+                for (int i = 0; i < 80; i++) Drone.allDrones.add(new Drone(Hub));
             }
         }
 
         switch (pop) {
             case "LOW" -> {
-                for (int i = 0; i < 100; i++) eventQueue.add(new Packet());
+                for (int i = 0; i < 100; i++) eventQueue.add(new Event());
             }
             case "MEDIUM" -> {
-                for (int i = 0; i < 250; i++) eventQueue.add(new Packet());
+                for (int i = 0; i < 250; i++) eventQueue.add(new Event());
             }
             case "HIGH" -> {
-                for (int i = 0; i < 500; i++) eventQueue.add(new Packet());
+                for (int i = 0; i < 500; i++) eventQueue.add(new Event());
             }
         }
 
@@ -69,8 +64,9 @@ public class Main {
     }
 
     public static void startDay(){
-        while (!allDronesInHub()){
-            for (Drone d : allDrones) {
+        double lastTime = System.currentTimeMillis();
+        while (!Drone.allDronesInHub()){
+            for (Drone d : Drone.allDrones) {
                 if (d.isDriving()) {
                     double distance = speed * (System.currentTimeMillis() - lastTime);
                     if (distance > d.getDistanceToDestinaion())
@@ -83,15 +79,8 @@ public class Main {
         }
     }
 
-    public static boolean allDronesInHub(){
-        for (Drone d : allDrones){
-            if (!d.getCurrentVendor().isHub()) return false;
-        }
-        return true;
-    }
-
     public static void makeVendors(){
-        allVendors.add(Hub);
+        Vendor.allVendors.add(Hub);
 
         // Restaurants for restaurant specific effects
         Vendor habit = new Vendor("Habit Burger", false, true);
@@ -104,14 +93,23 @@ public class Main {
 
         Random rando = new Random();
 
-        for (Vendor v : allVendors){
-            for (Vendor d : allVendors){
-                if (v != d) v.addRoute(new Connection<Vendor>(v, d, rando.nextDouble()));
+        for (Vendor v : Vendor.allVendors){
+            for (Vendor d : Vendor.allVendors){
+                if (v != d) v.addRoute(new Connection<Vendor>(v, d, rando.nextDouble()*1.5));
             }
         }
     }
 
     public static void distributeEvents(){
-        
+        Drone.allDrones.forEach(d -> {
+            d.addEvent(new Event(d, Vendor.getRandomVendorRouteFrom(Hub)));
+        });
+
+        for (int i = 0; !eventQueue.isEmpty(); i=(i+1)%Drone.allDrones.size()){
+            Drone.allDrones.get(i).addEvent(eventQueue.remove());
+        }
+        Drone.allDrones.forEach(d -> {
+            d.addEvent(new Event(d, d.getCurrentVendor().getRouteToHub()));
+        });
     }
 }
