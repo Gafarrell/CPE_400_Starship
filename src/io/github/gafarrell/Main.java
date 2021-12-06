@@ -9,6 +9,8 @@ public class Main {
     public static Queue<Event> eventQueue = new LinkedList<>();
     public static final Vendor Hub = new Vendor("Hub", true, false);
 
+    public static double throughput = 0;
+
     public static final double speed = 3.0;
 
     public static void main(String[] args) {
@@ -59,24 +61,35 @@ public class Main {
         }
 
         makeVendors();
-        distributeEvents();
         startDay();
     }
 
     public static void startDay(){
-        double lastTime = System.currentTimeMillis();
-        while (!Drone.allDronesInHub()){
-            for (Drone d : Drone.allDrones) {
-                if (d.isDriving()) {
-                    double distance = speed * (System.currentTimeMillis() - lastTime);
-                    if (distance > d.getDistanceToDestinaion())
-                        d.endDrive();
-                    else
-                        d.driveDistance(distance);
+        Random r = new Random();
+        int cycles = 1;
+        do {
+            for (Drone d : Drone.allDrones){
+                if (d.getRoute().getDest() != Hub) {
+                    d.giveRandomRoute();
+                    d.drive();
+
+                    int events = (r.nextInt(3) + 3);
+                    for (int i = 0; i < events && d.getRoute().getDest() != Hub; i++)
+                        d.registerEvent(eventQueue.remove());
+
+                } else {
+                    d.drive();
+                    d.unloadData();
                 }
             }
-            lastTime = System.currentTimeMillis();
+            Vendor.allVendors.forEach(Vendor::evaluateDrones);
+            throughput = Main.throughput/cycles;
+            cycles += 1;
         }
+        while (!Drone.allDronesInHub());
+
+        Drone.allDrones.forEach(Drone::endDay);
+
     }
 
     public static void makeVendors(){
@@ -98,18 +111,5 @@ public class Main {
                 if (v != d) v.addRoute(new Connection<Vendor>(v, d, rando.nextDouble()*1.5));
             }
         }
-    }
-
-    public static void distributeEvents(){
-        Drone.allDrones.forEach(d -> {
-            d.addEvent(new Event(d, Vendor.getRandomVendorRouteFrom(Hub)));
-        });
-
-        for (int i = 0; !eventQueue.isEmpty(); i=(i+1)%Drone.allDrones.size()){
-            Drone.allDrones.get(i).addEvent(eventQueue.remove());
-        }
-        Drone.allDrones.forEach(d -> {
-            d.addEvent(new Event(d, d.getCurrentVendor().getRouteToHub()));
-        });
     }
 }

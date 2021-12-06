@@ -1,27 +1,21 @@
 package io.github.gafarrell;
 
 import io.github.gafarrell.events.Event;
-import io.github.gafarrell.events.Packet;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.Queue;
 
 public class Drone {
 
     public static ArrayList<Drone> allDrones = new ArrayList<>();
 
-    public static final double maxData = 5;
-    private ArrayList<Packet> storedData;
+    public static final double MAX_DATA = 5;
+    private final ArrayList<Event> storedEvents = new ArrayList<>();
 
     private Vendor currentVendor;
-    private Connection<Vendor> destination;
-    private Queue<Event> eventQueue = new LinkedList<>();
+    private Connection<Vendor> route;
 
-    private double distanceToDestinaion;
+    private double storedData;
     private double batteryLife = 2.0;
-
-    private boolean isDriving = false;
 
     public Drone(){
         currentVendor = Main.Hub;
@@ -35,49 +29,79 @@ public class Drone {
         allDrones.add(this);
     }
 
+    public void drive(){
+        if ((this.route.getDistance()*0.01 + this.route.getDest().getRouteToHub().getDistance()) > this.batteryLife) {
+            this.route = this.currentVendor.getRouteToHub();
+            this.batteryLife -= this.route.getDistance()*0.01;
+            this.storedData += this.route.getDistance()*0.02;
+            setCurrentVendor(this.route.getDest());
+            return;
+        }
+
+        this.batteryLife -= this.route.getDistance()*0.01;
+        this.storedData += this.route.getDistance()*0.02;
+        setCurrentVendor(this.route.getDest());
+    }
+
+    public void endDay(){
+        this.route = this.currentVendor.getRouteToHub();
+        drive();
+        this.route = null;
+        unloadData();
+    }
+
+    public void registerEvent(Event e){
+        if (this.storedData > Drone.MAX_DATA){
+            this.route = this.currentVendor.getRouteToHub();
+            return;
+        }
+
+        this.storedEvents.add(e);
+        this.storedData += e.getSize();
+
+        if (e.getPriority() == Event.Priority.HIGH){
+            this.route = this.currentVendor.getRouteToHub();
+        }
+    }
+
+    public void giveRandomRoute(){
+        this.route = Vendor.getRandomVendorRouteFrom(this.currentVendor);
+        if (((this.route.getDistance()*0.01) + (this.route.getDest().getRouteToHub().getDistance()*0.01)) > this.batteryLife){
+            this.route = null;
+        }
+    }
+
+    public void unloadData(){
+        Main.throughput += storedData;
+        this.batteryLife -= this.storedData*0.02;
+        this.storedData = 0;
+    }
+
+    public void transferEvents(Drone d){
+        for (Event e : d.storedEvents) {
+            if (e.getPriority() == Event.Priority.HIGH && e.getSize() + this.storedData < Drone.MAX_DATA) {
+                d.storedEvents.remove(e);
+                this.storedData += e.getSize();
+                this.storedEvents.add(e);
+                d.giveRandomRoute();
+            }
+        }
+    }
+
+    public Vendor getCurrentVendor(){return currentVendor;}
+    public Connection<Vendor> getRoute(){return route;}
+    public void setCurrentVendor(Vendor currentVendor){
+        this.currentVendor.removeRobot(this);
+        this.currentVendor = currentVendor;
+        this.currentVendor.addRobot(this);
+    }
+    public void setRoute(Connection<Vendor> route){this.route = route;}
+    public double getStoredData(){return storedData;}
+
     public static boolean allDronesInHub(){
         for (Drone d : allDrones){
             if (!d.getCurrentVendor().isHub()) return false;
         }
         return true;
     }
-
-    public void driveTo(Connection<Vendor> destination){
-        if (this.batteryLife < (destination.getDistance()*0.01) + (destination.getDest().getRouteToHub().getDistance()*0.01)){
-            this.destination = this.currentVendor.getRouteToHub();
-        }
-        this.destination = destination;
-        this.distanceToDestinaion = destination.getDistance();
-    }
-
-    // Subtract battery life and move bot closer to destination.
-    public void driveDistance(double distanceTravelled){
-        this.batteryLife -= distanceTravelled*0.01;
-        this.distanceToDestinaion -= distanceTravelled;
-    }
-
-    public void addEvent(Event e){
-        this.eventQueue.add(e);
-    }
-
-    // Ends the drive, making all distance/destination null or 0.
-    public void endDrive(){
-        if (destination == null) return;
-
-        Event e = eventQueue.peek();
-        while (e.getType() != Event.Action.DRIVE_TO){
-            storedData.add(new Packet());
-        }
-        Packet endOfDriveData = new Packet(destination.getDistance()*0.01, Packet.Priority.LOW);
-        driveDistance(this.distanceToDestinaion);
-        this.distanceToDestinaion = 0;
-        this.destination = null;
-        this.isDriving = false;
-    }
-
-
-    public Vendor getCurrentVendor(){return currentVendor;}
-    public Connection<Vendor> getDestination(){return destination;}
-    public boolean isDriving(){return isDriving;}
-    public double getDistanceToDestinaion(){return distanceToDestinaion;}
 }

@@ -7,7 +7,7 @@ public class Vendor {
 
     public static ArrayList<Vendor> allVendors = new ArrayList<>();
 
-    private String name;
+    private final String name;
     private ArrayList<Connection<Vendor>> routes = new ArrayList<>();
     private ArrayList<Drone> localDrones = new ArrayList<>();
 
@@ -15,6 +15,7 @@ public class Vendor {
     private final boolean isSeller;
 
     public Vendor(String name){
+        this.name = name;
         routes = new ArrayList<>();
         localDrones = new ArrayList<>();
         this.isHub = false;
@@ -28,25 +29,30 @@ public class Vendor {
         this.isSeller = isSeller;
     }
 
-    public void addRobot(Drone drone){
-        this.localDrones.add(drone);
-    }
-
-    public void addRoute(Connection<Vendor> route){
-        this.routes.add(route);
-    }
-
     public Connection<Vendor> getRouteToHub(){
         for (Connection<Vendor> v : routes)
             if (v.getDest() == Main.Hub) return v;
         return null;
     }
-    public boolean isSeller(){return isSeller;}
-    public boolean isHub(){return isHub;}
-    public void addVendorRoute(Connection<Vendor> route){
-        this.routes.add(route);
+
+    public void evaluateDrones(){
+        for (Drone l : localDrones)
+            for (Drone d : localDrones)
+                if (d.getRoute().getDest() == Main.Hub && d.getStoredData() < Drone.MAX_DATA && d != l) d.transferEvents(l);
+
     }
 
+
+    public void addRobot(Drone drone){
+        this.localDrones.add(drone);
+    }
+    public void removeRobot(Drone drone){
+        if (this.localDrones.contains(drone))this.localDrones.remove(drone);
+    }
+    public void addRoute(Connection<Vendor> route){
+        this.routes.add(route);
+    }
+    public boolean isHub(){return isHub;}
 
 
     public static Connection<Vendor> getRandomVendorRouteFrom(Vendor v){
@@ -54,7 +60,7 @@ public class Vendor {
         Connection<Vendor> randomRoute;
         do {
             randomRoute = v.routes.get(r.nextInt(v.routes.size()));
-        } while (randomRoute.getDest() == v);
+        } while (randomRoute.getDest() == v || randomRoute.getDest() == Main.Hub);
         return randomRoute;
     }
 }
